@@ -31,18 +31,24 @@ SYSTEM_PROMPT = """You are an expert software tester. Given code, generate struc
 ## BUGS & FIXES
 Use bullet points (dash -) for all items. Format: - Item: description | Input: value | Expected: value"""
 
-def generate_response(code, language="python", max_tokens=2000):
+def generate_response(code, language="python", max_tokens=800):
     from mlx_lm import generate
     model, tokenizer = get_model()
 
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": f"Generate a comprehensive test report for this {language} code:\n```{language}\n{code}\n```"}
-    ]
-
-    prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-    response = generate(model, tokenizer, prompt=prompt, max_tokens=max_tokens, temp=0.3)
-    return response
+    # Use the raw code as prompt, matching the training data input exactly
+    prompt = f"{code}\n"
+    
+    response = generate(
+        model, 
+        tokenizer, 
+        prompt=prompt, 
+        max_tokens=max_tokens
+    )
+    
+    # Safety: stop at common hallucination patterns
+    if "### [" in response:
+        response = response.split("### [")[0]
+    return response.strip()
 
 @app.route("/health", methods=["GET"])
 def health():
@@ -62,6 +68,8 @@ def gen():
         result = generate_response(code, language)
         return jsonify({"result": result})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"Generate error: {e}")
         return jsonify({"error": str(e)}), 500
 
@@ -78,13 +86,12 @@ def analyze():
         from mlx_lm import generate
         model, tokenizer = get_model()
 
-        messages = [
-            {"role": "system", "content": "You are a code reviewer. Respond ONLY with a JSON array of bugs. Format: [{\"line\": N, \"severity\": \"critical|warning|info\", \"bug\": \"title\", \"explanation\": \"desc\", \"fix\": \"how\"}]. If no bugs, return []."},
-            {"role": "user", "content": f"Find bugs in this {language} code:\n```{language}\n{code}\n```"}
-        ]
+        from mlx_lm import generate
+        model, tokenizer = get_model()
 
-        prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-        raw = generate(model, tokenizer, prompt=prompt, max_tokens=800, temp=0.1)
+        # Match training format for code analysis
+        prompt = f"### [CODE ANALYSIS]\nLanguage: {language}\nCode:\n{code}\n"
+        raw = generate(model, tokenizer, prompt=prompt, max_tokens=600)
 
         import json, re
         clean = re.sub(r'```json|```', '', raw).strip()
@@ -95,6 +102,8 @@ def analyze():
 
         return jsonify({"bugs": bugs})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"Analyze error: {e}")
         return jsonify({"bugs": []})
 
