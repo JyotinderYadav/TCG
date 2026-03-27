@@ -68,9 +68,19 @@ Most AI generators stop at producing code. Our solution is the first to implemen
 3.  **Analysis**: Failure logs are captured and fed back into the AI.
 4.  **Auto-Fix**: The AI evaluates the crash and proposes a **Fixed Code Snippet** with a one-click apply option.
 
-## 6. Conclusion
-By combining Dual-Mode AI with a Self-Healing loop, we have built a tool that is not only powerful but also adaptive and resilient. This implementation sets a new standard for developer productivity and code reliability in the AI age.
+## 6. Competitive Analysis: Why We Win
+| Feature | Standard Competitors (e.g., BKC Kings) | Our Solution |
+| :--- | :--- | :--- |
+| **AI Model** | Generic Cloud API (GPT-4/Claude) | **Dual-Mode** (Llama 3.3 + **Custom Fine-tuned Qwen 1.5B**) |
+| **Backend Integration** | Generation Only | **Execute & Auto-Fix** (Self-Healing Runtime) |
+| **Hardware Performance** | Cloud-dependent (Slow) | **MLX Optimized** (Native M1/M2/M3 Performance) |
+| **Data Privacy** | Risk of IP Leakage | **Local-First** (Zero-leakage, Offline Processing) |
 
----
-**Prepared for the Hackathon Submission**  
-*Team Jyotinder & Antigravity AI*
+## 7. Execution Sandbox Runtime: How It Works
+Our solution features an **Isolated Execution Sandbox**. This runtime environment:
+1.  **Isolates** code execution in temporary containers to prevent system interference.
+2.  **Captures** the `stdout` and `stderr` logs from the unit test runners (Pytest/Jest).
+3.  **Feeds** these logs back into the AI to initiate the **Self-Healing Loop**.
+
+## 8. Conclusion
+By combining Dual-Mode AI with a Self-Healing loop, we have built a tool that is not only powerful but also adaptive and resilient. This implementation sets a new standard for developer productivity and code reliability in the AI age.
