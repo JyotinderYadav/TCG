@@ -97,19 +97,19 @@ function parseOutput(raw) {
       continue;
     }
     const low = line.toLowerCase();
-    if (low.match(/^#+\s*edge case/)) {
+    if (low.match(/^(?:#|\*\*)*\s*edge case/)) {
       currentSection = "edge";
       continue;
-    } else if (low.match(/^#+\s*bug/) || low.match(/^#+\s*fix/)) {
+    } else if (low.match(/^(?:#|\*\*)*\s*(bug|fix)/)) {
       currentSection = "bug";
       continue;
-    } else if (low.match(/^#+\s*test case/) || low.match(/^#+\s*executable/)) {
+    } else if (low.match(/^(?:#|\*\*)*\s*(test case|executable)/)) {
       currentSection = "test";
       continue;
     }
-    const isBullet = /^\s*[-*•]\s+/.test(line) && line.trim().length > 5;
+    const isBullet = /^\s*(?:[-*•]|\d+\.)\s+/.test(line) && line.trim().length > 5;
     if (isBullet) {
-      const clean = line.replace(/^\s*[-*•]\s+/, "").trim();
+      const clean = line.replace(/^\s*(?:[-*•]|\d+\.)\s+/, "").trim();
       if (!clean) continue;
       if (currentSection === "edge") sections.edgeCases.push(clean);
       else if (currentSection === "bug") sections.bugs.push(clean);
@@ -581,7 +581,22 @@ export default function App() {
   const [liveBugs, setLiveBugs] = useState([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [liveEnabled, setLiveEnabled] = useState(true);
+  const [aiMode, setAiMode] = useState("cloud"); // "cloud" or "local"
+  const [localAvailable, setLocalAvailable] = useState(false);
   const debounceRef = useRef(null);
+
+  // Poll local model availability every 5s
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const res = await axios.get("http://localhost:5555/api/local-status");
+        setLocalAvailable(res.data.available);
+      } catch { setLocalAvailable(false); }
+    };
+    check();
+    const interval = setInterval(check, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   const mode = MODE_CONFIG[inputType];
 
@@ -594,9 +609,10 @@ export default function App() {
       }
       setAnalyzing(true);
       try {
-        const res = await axios.post("http://localhost:5000/api/analyze", {
+        const res = await axios.post("http://localhost:5555/api/analyze", {
           code: codeVal,
           language: lang,
+          mode: aiMode,
         });
         setLiveBugs(res.data.bugs || []);
       } catch {
@@ -641,11 +657,12 @@ export default function App() {
     setParsed(null);
     setRawResult("");
     try {
-      const res = await axios.post("http://localhost:5000/api/generate", {
+      const res = await axios.post("http://localhost:5555/api/generate", {
         code,
         language,
         framework: FRAMEWORKS[language],
         inputType,
+        mode: aiMode,
       });
       const raw = res.data.result;
       setRawResult(raw);
@@ -766,6 +783,83 @@ export default function App() {
           >
             Type code → bugs appear live · Click Generate → full test suite
           </p>
+
+          {/* ── AI Mode Toggle ── */}
+          <div style={{ display: "flex", justifyContent: "center", gap: "8px", marginTop: "14px", alignItems: "center" }}>
+            <button
+              onClick={() => setAiMode("cloud")}
+              style={{
+                padding: "7px 16px",
+                borderRadius: "10px",
+                fontSize: "12px",
+                fontWeight: 600,
+                cursor: "pointer",
+                border: "none",
+                transition: "all 0.2s",
+                background: aiMode === "cloud" ? "rgba(99,179,237,0.25)" : "rgba(255,255,255,0.05)",
+                color: aiMode === "cloud" ? "#90cdf4" : "rgba(255,255,255,0.4)",
+                outline: aiMode === "cloud" ? "1px solid rgba(99,179,237,0.5)" : "1px solid rgba(255,255,255,0.08)",
+              }}
+            >
+              ☁️ Cloud API
+            </button>
+            <button
+              onClick={() => setAiMode("local")}
+              style={{
+                padding: "7px 16px",
+                borderRadius: "10px",
+                fontSize: "12px",
+                fontWeight: 600,
+                cursor: "pointer",
+                border: "none",
+                transition: "all 0.2s",
+                background: aiMode === "local" ? "rgba(34,197,94,0.25)" : "rgba(255,255,255,0.05)",
+                color: aiMode === "local" ? "#86efac" : "rgba(255,255,255,0.4)",
+                outline: aiMode === "local" ? "1px solid rgba(34,197,94,0.5)" : "1px solid rgba(255,255,255,0.08)",
+              }}
+            >
+              🖥️ Local Model
+            </button>
+            <span style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "5px",
+              fontSize: "11px",
+              color: localAvailable ? "rgba(34,197,94,0.8)" : "rgba(255,255,255,0.3)",
+              marginLeft: "6px",
+            }}>
+              <span style={{
+                width: "7px",
+                height: "7px",
+                borderRadius: "50%",
+                background: localAvailable ? "#22c55e" : "rgba(255,255,255,0.2)",
+                boxShadow: localAvailable ? "0 0 6px rgba(34,197,94,0.6)" : "none",
+              }} />
+              {localAvailable ? "Local model ready" : "Local model offline"}
+            </span>
+          </div>
+
+          {/* Model Badge */}
+          <div style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
+            marginTop: "10px",
+            background: aiMode === "cloud" ? "rgba(99,179,237,0.1)" : "rgba(34,197,94,0.1)",
+            border: `1px solid ${aiMode === "cloud" ? "rgba(99,179,237,0.2)" : "rgba(34,197,94,0.2)"}`,
+            borderRadius: "16px",
+            padding: "3px 12px",
+          }}>
+            <span style={{ fontSize: "10px" }}>{aiMode === "cloud" ? "🚀" : "🧠"}</span>
+            <span style={{
+              fontSize: "11px",
+              fontWeight: 600,
+              color: aiMode === "cloud" ? "#90cdf4" : "#86efac",
+              letterSpacing: "0.05em",
+            }}>
+              {aiMode === "cloud" ? "Powered by Llama 3.3 70B" : "Powered by Local Qwen 1.5B"}
+            </span>
+          </div>
         </div>
 
         {/* Mode Tabs */}

@@ -11,6 +11,27 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 app.use(cors())
 app.use(express.json())
 
+// ─── LOCAL MODEL PROXY ──────────────────────────────────────────────────────
+const LOCAL_MODEL_URL = 'http://localhost:5556'
+
+async function isLocalModelAvailable() {
+  try {
+    const resp = await fetch(`${LOCAL_MODEL_URL}/health`, { signal: AbortSignal.timeout(2000) })
+    return resp.ok
+  } catch { return false }
+}
+
+async function proxyToLocal(endpoint, body) {
+  const resp = await fetch(`${LOCAL_MODEL_URL}${endpoint}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(60000)
+  })
+  if (!resp.ok) throw new Error(`Local model error: ${resp.status}`)
+  return resp.json()
+}
+
 // ─── PROMPT BUILDERS ────────────────────────────────────────────────────────
 
 function buildCodeSnippetPrompt(code, language, framework) {
@@ -24,17 +45,17 @@ ${code}
 Generate a STRUCTURED test report with EXACTLY these 4 sections:
 
 ## TEST CASES
-List every test case (happy path, normal scenarios):
+List 3 to 5 comprehensive test cases (happy path, normal scenarios). YOU MUST USE BULLET POINTS (dash -):
 - Test case 1: [name] | Input: [value] | Expected: [value]
 - Test case 2: [name] | Input: [value] | Expected: [value]
 
 ## EDGE CASES
-List all edge/boundary cases:
+List 2 to 4 edge/boundary cases. YOU MUST USE BULLET POINTS (dash -):
 - Edge case 1: [description] | Input: [value] | Expected: [value]
 - Edge case 2: [description] | Input: [value] | Expected: [value]
 
 ## BUGS & FIXES
-List all bugs found and how to fix them:
+List up to 3 critical bugs found, or state "None" if perfectly safe. YOU MUST USE BULLET POINTS (dash -):
 - Bug 1: [bug description] | Fix: [how to fix it]
 - Bug 2: [bug description] | Fix: [how to fix it]
 
@@ -137,11 +158,23 @@ Return ONLY the JSON array, nothing else.`
 
 // Full test generation
 app.post('/api/generate', async (req, res) => {
-  const { code, language, framework, inputType } = req.body
+  const { code, language, framework, inputType, mode } = req.body
 
   if (!code || !code.trim())
     return res.status(400).json({ error: 'Input cannot be empty' })
 
+  // ── LOCAL MODE ──
+  if (mode === 'local') {
+    try {
+      const data = await proxyToLocal('/generate', { code, language, framework, inputType })
+      return res.json(data)
+    } catch (err) {
+      console.error('Local model error, falling back to cloud:', err.message)
+      // fallthrough to cloud
+    }
+  }
+
+  // ── CLOUD MODE (Groq) ──
   let prompt
   if (inputType === 'API Definition') prompt = buildApiPrompt(code, framework || 'Jest')
   else if (inputType === 'User Story') prompt = buildUserStoryPrompt(code, framework || 'Jest')
@@ -163,11 +196,22 @@ app.post('/api/generate', async (req, res) => {
 
 // Live bug detection (fast, lightweight)
 app.post('/api/analyze', async (req, res) => {
-  const { code, language } = req.body
+  const { code, language, mode } = req.body
 
   if (!code || code.trim().length < 10)
     return res.json({ bugs: [] })
 
+  // ── LOCAL MODE ──
+  if (mode === 'local') {
+    try {
+      const data = await proxyToLocal('/analyze', { code, language })
+      return res.json(data)
+    } catch (err) {
+      console.error('Local analyze error, falling back to cloud:', err.message)
+    }
+  }
+
+  // ── CLOUD MODE (Groq) ──
   try {
     const completion = await groq.chat.completions.create({
       model: 'llama-3.3-70b-versatile',
@@ -175,9 +219,7 @@ app.post('/api/analyze', async (req, res) => {
       max_tokens: 800,
       temperature: 0.1,
     })
-
     const raw = completion.choices[0].message.content.trim()
-    // Strip markdown fences if model adds them
     const clean = raw.replace(/```json|```/g, '').trim()
 
     let bugs = []
@@ -188,6 +230,12 @@ app.post('/api/analyze', async (req, res) => {
     console.error('Analyze error:', err.message)
     res.json({ bugs: [] })
   }
+})
+
+// Local model status check
+app.get('/api/local-status', async (req, res) => {
+  const available = await isLocalModelAvailable()
+  res.json({ available })
 })
 
 app.listen(process.env.PORT, () => {

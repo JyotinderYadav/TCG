@@ -3,6 +3,10 @@ node_modules/
 .pnp
 .pnp.js
 
+# Model weights (too large for git)
+server/training/adapters/*.safetensors
+server/training/train_data/
+
 # Environment variables
 .env
 .env.local
