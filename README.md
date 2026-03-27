@@ -1,195 +1,70 @@
-# Testcase Generator
+# Dual-Mode AI Testcase Generator & Self-Healing Debugger 🚀
 
-An intelligent AI-powered test case generator that automatically creates comprehensive test cases for your code. Built with React and Express, enhanced with Groq AI for intelligent test case generation.
+An intelligent AI-powered tool that goes beyond standard generation. It features a unique **Self-Healing AI Debugger loop** that automatically executes tests, catches crashes, and proposes code fixes in real-time.
 
 ## 📋 Features
 
-- **Three Input Modes**:
-  - 💻 **Code Snippet**: Paste functions and classes for live bug detection
-  - 🌐 **API Definition**: Describe REST endpoints for full API test generation
-  - 📖 **User Story**: Write feature requirements for acceptance tests
-- **AI-Powered Test Generation**: Uses Groq AI to generate comprehensive test cases
-- **Multi-Language Support**: JavaScript, Python, Java, Go, C++
-- **Framework Integration**: Jest, pytest, JUnit, testing, GoogleTest
-- **Real-time Editing**: Monaco Editor for seamless code editing
-- **Structured Output**: Test cases, edge cases, bug detection, and executable code
+- **Dual-Mode AI Engine**: Toggle between **Cloud** (Groq/Llama 3.3) and **Local** (Fine-tuned Qwen2.5-Coder).
+- **Self-Healing Debugger 🛡️**: Automatically executes tests, catches crashes (like `ZeroDivisionError`), and proposes fixes.
+- **MLX Performance**: Native Apple Silicon optimization (M1/M2/M3) for zero-latency local inference.
+- **Privacy-First**: Option to process sensitive code entirely offline using your own hardware.
+- **Three Input Modes**: Code Snippet, API Definition, and User Story.
+- **Structured Output**: Test cases, edge cases, bug detection, and executable code.
 
 ## 📁 Project Structure
 
 ```
-testcase-generator/
+Automatic_Testcase_Generator/
 ├── client/                 # React frontend application
-│   ├── src/
-│   │   ├── App.jsx
-│   │   ├── main.jsx
-│   │   └── assets/
-│   ├── package.json
-│   ├── vite.config.js
-│   └── tailwind.config.js
-├── server/                 # Express backend server
-│   ├── index.js
-│   └── package.json
+├── server/                 # Node.js backend & AI Orchestrator
+│   ├── index.js            # Main routing & execution logic
+│   └── training/           # Local MLX models & Inference server
 └── README.md
 ```
 
-## 🚀 Getting Started
+## 🚀 Getting Started (Run the Project)
 
-### Prerequisites
-
-- Node.js (v16+)
-- npm or yarn
+### 1. Prerequisites
+- Node.js (v18+)
+- Python 3.12+ (on Apple Silicon for MLX)
 - Groq API key ([Get one here](https://console.groq.com))
 
-### Installation
-
-1. **Clone the repository**
-
-```bash
-git clone https://github.com/yourusername/testcase-generator.git
-cd testcase-generator
-```
-
-2. **Setup Server**
-
+### 2. Setup Backend (Node.js)
 ```bash
 cd server
 npm install
-# Create .env file and add your Groq API key
-echo "GROQ_API_KEY=your_api_key_here" > .env
+# Create/Edit .env file
+echo "GROQ_API_KEY=your_api_key" > .env
+echo "PORT=5555" >> .env
 npm run dev
 ```
 
-3. **Setup Client** (in a new terminal)
+### 3. Setup Local AI Server (Python/MLX)
+*Crucial for "Local Mode" and the "Self-Healing" feature.*
+```bash
+cd server
+# Install dependencies
+pip3 install flask flask-cors mlx-lm pytest axios --break-system-packages
+# Start local inference
+python3 -u training/local_server.py
+```
 
+### 4. Setup Frontend (React)
 ```bash
 cd client
 npm install
 npm run dev
 ```
 
-The application will be available at `http://localhost:5173`
+**Access the App at**: `http://localhost:5173`
 
-## 🔧 Configuration
+## 📚 Usage Guide
 
-### Server Environment Variables
-
-Create a `.env` file in the `server` directory:
-
-```env
-GROQ_API_KEY=your_groq_api_key
-PORT=5000
-NODE_ENV=development
-```
-
-## 📚 Usage
-
-1. **Select Input Mode**: Choose between Code Snippet, API Definition, or User Story
-2. **Paste Your Input**: Add your code, API definition, or user story
-3. **Select Language & Framework**: Pick from JavaScript, Python, Java, Go, or C++
-4. **Click Generate Tests**: AI will analyze and generate tests
-5. **Review Results** in this order:
-   - ✅ **Test Cases** - Happy path and normal scenarios
-   - ⚠️ **Edge Cases** - Boundary conditions and special cases
-   - 🔴 **Live Bugs** (Code Snippet mode) - Real-time bug detection while typing
-   - 🐛 **Bugs & Fixes** - Found issues with solutions
-   - ⚡ **Executable Code** - Ready-to-use test code
-
-## 🛠️ Development
-
-### Backend
-
-- **Framework**: Express.js
-- **AI Engine**: Groq SDK
-- **Dependencies**: cors, dotenv, express, groq-sdk
-
-### Frontend
-
-- **Framework**: React 19
-- **Build Tool**: Vite
-- **Styling**: Tailwind CSS
-- **Editor**: Monaco Editor
-- **HTTP Client**: Axios
-
-### Available Scripts
-
-**Client:**
-
-```bash
-npm run dev      # Start development server
-npm run build    # Build for production
-npm run lint     # Run ESLint
-npm run preview  # Preview production build
-```
-
-**Server:**
-
-```bash
-npm run dev      # Start development server with nodemon
-npm run test     # Run tests
-```
-
-## 📝 API Endpoints
-
-### POST /api/generate-tests
-
-Generates test cases for the provided code.
-
-**Request Body:**
-
-```json
-{
-  "code": "your code here",
-  "language": "javascript",
-  "framework": "jest"
-}
-```
-
-**Response:**
-
-```json
-{
-  "testCases": [...],
-  "edgeCases": [...],
-  "errorScenarios": [...],
-  "performance": [...]
-}
-```
-
-## 📊 Supported Languages & Frameworks
-
-| Language       | Framework  | Mode             |
-| -------------- | ---------- | ---------------- |
-| **JavaScript** | Jest       | Code, API, Story |
-| **Python**     | pytest     | Code, API, Story |
-| **Java**       | JUnit      | Code, API, Story |
-| **Go**         | testing    | Code, API, Story |
-| **C++**        | GoogleTest | Code, API, Story |
-
-### Input Modes
-
-- **💻 Code Snippet**: Analyze functions and classes for potential bugs, edge cases, and test coverage
-- **🌐 API Definition**: Generate comprehensive test cases for REST endpoints, including success and error scenarios
-- **📖 User Story**: Create acceptance test criteria based on feature requirements
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## 📄 License
-
-This project is licensed under the ISC License - see the LICENSE file for details.
-
-## 🙋 Support
-
-For support, please open an issue on GitHub or contact the development team.
-
-## 🔗 Links
-
-- [Groq AI](https://groq.com)
-- [React Documentation](https://react.dev)
-- [Express Documentation](https://expressjs.com)
-- [Vite Documentation](https://vitejs.dev)
+1. **Paste your Code**: Add a function or class to the editor.
+2. **Generate Tests**: Click the generate button (Cloud or Local).
+3. **Run & Auto-Fix**: If tests fail, click **"▶️ Run Tests & Auto-Fix"**. 
+4. **Apply Fix**: The AI will analyze the crash logs from the sandbox and suggest a fix. Click **"Apply Fix"** to heal your code!
 
 ---
-
-**Made with ❤️ at Hackathon**
+**TEAM 24 - 1 Step Ahead 🏁**
+Made with ❤️ for the Hackathon.
