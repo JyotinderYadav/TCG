@@ -35,8 +35,15 @@ def generate_response(code, language="python", max_tokens=800):
     from mlx_lm import generate
     model, tokenizer = get_model()
 
-    # Use the raw code as prompt, matching the training data input exactly
-    prompt = f"{code}\n"
+    if code.startswith("ERROR_FIX:"):
+        # Special prompt for fixing bugs
+        parts = code.split("\nLOG:", 1)
+        orig_code = parts[0].replace("ERROR_FIX:", "").strip()
+        log = parts[1].strip() if len(parts) > 1 else "Unknown error"
+        prompt = f"### [CODE FIXING]\nLanguage: {language}\nOriginal Code:\n{orig_code}\n\nError Log:\n{log}\n\nFixed Code:\n"
+    else:
+        # Standard test generation
+        prompt = f"{code}\n"
     
     response = generate(
         model, 

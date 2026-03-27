@@ -583,6 +583,10 @@ export default function App() {
   const [liveEnabled, setLiveEnabled] = useState(true);
   const [aiMode, setAiMode] = useState("cloud"); // "cloud" or "local"
   const [localAvailable, setLocalAvailable] = useState(false);
+  const [execResult, setExecResult] = useState(null);
+  const [execLoading, setExecLoading] = useState(false);
+  const [fixLoading, setFixLoading] = useState(false);
+  const [fixedCode, setFixedCode] = useState("");
   const debounceRef = useRef(null);
 
   // Poll local model availability every 5s
@@ -672,6 +676,56 @@ export default function App() {
       setRawResult("Error: " + err.message);
     }
     setLoading(false);
+  };
+
+  const handleExecute = async () => {
+    if (!parsed?.rawCode) return;
+    setExecLoading(true);
+    setExecResult(null);
+    setFixedCode("");
+    try {
+      const res = await axios.post("http://localhost:5555/api/execute", {
+        code,
+        tests: parsed.rawCode,
+        language,
+      });
+      setExecResult(res.data);
+      if (!res.data.success) {
+        // Automatically request a fix if tests fail
+        handleFix(res.data.output);
+      }
+    } catch (err) {
+      setExecResult({ success: false, output: "Execution failed: " + err.message });
+    }
+    setExecLoading(false);
+  };
+
+  const handleFix = async (errorLog) => {
+    setFixLoading(true);
+    try {
+      const res = await axios.post("http://localhost:5555/api/fix", {
+        code,
+        error: errorLog,
+        mode: aiMode,
+        language,
+      });
+      setFixedCode(res.data.fixedCode);
+    } catch (err) {
+      console.error("Fix failed", err);
+    }
+    setFixLoading(false);
+  };
+
+  const applyFix = () => {
+    if (fixedCode) {
+      // Extract code from markdown if present
+      const cleanCode = fixedCode.includes("```") 
+        ? fixedCode.split("```")[1].split("\n").slice(1).join("\n")
+        : fixedCode;
+      setCode(cleanCode.trim());
+      setFixedCode("");
+      setExecResult(null);
+    }
   };
 
   const totalFound = parsed
@@ -1342,6 +1396,104 @@ export default function App() {
                   items={parsed.bugs}
                   emptyMsg="No bugs detected"
                 />
+
+                {/* SELF-HEALING SECTION */}
+                <div style={{
+                  marginTop: "20px",
+                  padding: "20px",
+                  background: "rgba(139,92,246,0.05)",
+                  border: "1px solid rgba(139,92,246,0.15)",
+                  borderRadius: "16px",
+                  marginBottom: "20px"
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <span style={{ fontSize: "20px" }}>🛡️</span>
+                      <span style={{ fontWeight: 700, fontSize: "14px", color: "#a78bfa" }}>Self-Healing Debugger</span>
+                    </div>
+                    <button
+                      onClick={handleExecute}
+                      disabled={execLoading}
+                      style={{
+                        padding: "6px 15px",
+                        borderRadius: "8px",
+                        background: "#7c3aed",
+                        color: "white",
+                        border: "none",
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        opacity: execLoading ? 0.6 : 1
+                      }}
+                    >
+                      {execLoading ? "Running..." : "▶️ Run Tests & Auto-Fix"}
+                    </button>
+                  </div>
+
+                  {execResult && (
+                    <div style={{ 
+                      background: "#000", 
+                      borderRadius: "8px", 
+                      padding: "12px", 
+                      fontFamily: "monospace", 
+                      fontSize: "12px",
+                      border: `1px solid ${execResult.success ? "#22c55e44" : "#ef444444"}`,
+                      marginBottom: "15px"
+                    }}>
+                      <div style={{ color: execResult.success ? "#22c55e" : "#ef4444", marginBottom: "8px", fontWeight: "bold" }}>
+                        {execResult.success ? "✓ ALL TESTS PASSED" : "✗ TESTS FAILED"}
+                      </div>
+                      <pre style={{ margin: 0, color: "rgba(255,255,255,0.7)", whiteSpace: "pre-wrap" }}>
+                        {execResult.output}
+                      </pre>
+                    </div>
+                  )}
+
+                  {fixLoading && (
+                    <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", textAlign: "center", padding: "10px" }}>
+                      🧠 AI is analyzing the failure and generating a fix...
+                    </div>
+                  )}
+
+                  {fixedCode && (
+                    <div style={{ 
+                      background: "rgba(34,197,94,0.1)", 
+                      border: "1px solid rgba(34,197,94,0.3)", 
+                      borderRadius: "12px", 
+                      padding: "15px" 
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                        <span style={{ color: "#86efac", fontWeight: 700, fontSize: "12px" }}>✨ SUGGESTED FIX</span>
+                        <button
+                          onClick={applyFix}
+                          style={{
+                            padding: "4px 12px",
+                            borderRadius: "6px",
+                            background: "#22c55e",
+                            color: "white",
+                            border: "none",
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            cursor: "pointer"
+                          }}
+                        >
+                          Apply Fix to Editor
+                        </button>
+                      </div>
+                      <pre style={{ 
+                        margin: 0, 
+                        fontSize: "11px", 
+                        color: "rgba(255,255,255,0.8)", 
+                        fontFamily: "monospace",
+                        maxHeight: "200px",
+                        overflow: "auto"
+                      }}>
+                        {fixedCode}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+
                 <CodeBlock code={parsed.rawCode} />
               </div>
             )}

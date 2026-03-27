@@ -2,6 +2,11 @@ import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import Groq from 'groq-sdk'
+import axios from 'axios'
+import { exec } from 'child_process'
+import fs from 'fs'
+import path from 'path'
+import os from 'os'
 
 dotenv.config()
 
@@ -234,9 +239,96 @@ app.post('/api/analyze', async (req, res) => {
 
 // Local model status check
 app.get('/api/local-status', async (req, res) => {
-  const available = await isLocalModelAvailable()
-  res.json({ available })
-})
+    try {
+        await axios.get('http://localhost:5556/health', { timeout: 1000 });
+        res.json({ online: true });
+    } catch (err) {
+        res.json({ online: false });
+    }
+});
+
+app.post('/api/execute', async (req, res) => {
+    const { code, tests, language } = req.body;
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tcg-'));
+    let fileName, testFileName, command;
+
+    try {
+        if (language === 'python') {
+            fileName = path.join(tempDir, 'solution.py');
+            testFileName = path.join(tempDir, 'test_solution.py');
+            fs.writeFileSync(fileName, code);
+            
+            // Basic wrapper to run tests
+            const fullTestCode = `
+import pytest
+import sys
+${code}
+
+def test_generated():
+    # Attempt to parse and run the generated tests if they are in a specific format
+    # For now, we expect the AI to provide readable test cases or we run a simple check
+    pass 
+
+${tests}
+`;
+            fs.writeFileSync(testFileName, fullTestCode);
+            command = `pytest ${testFileName} --tb=short`;
+        } else if (language === 'javascript') {
+            fileName = path.join(tempDir, 'solution.js');
+            fs.writeFileSync(fileName, `${code}\n\n${tests}`);
+            command = `node ${fileName}`;
+        } else {
+            return res.status(400).json({ error: "Execution only supported for Python/JS currently" });
+        }
+
+        exec(command, (error, stdout, stderr) => {
+            const output = stdout + stderr;
+            const success = !error;
+            res.json({ success, output, error: error ? error.message : null });
+            
+            // Cleanup
+            try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/fix', async (req, res) => {
+    const { code, error, mode, language } = req.body;
+    const prompt = `### [CODE FIXING]
+Language: ${language}
+Original Code:
+${code}
+
+Error Log:
+${error}
+
+Instructions: Analyze the error and provide ONLY the corrected code block. No explanations.`;
+
+    try {
+        if (mode === 'local') {
+            try {
+                const localResp = await axios.post('http://localhost:5556/generate', { 
+                    code: `ERROR_FIX: ${code}\nLOG: ${error}`, 
+                    language 
+                });
+                return res.json({ fixedCode: localResp.data.result });
+            } catch (err) {
+                console.warn("Local fix failed, falling back to cloud");
+            }
+        }
+
+        const completion = await groq.chat.completions.create({
+            messages: [{ role: "user", content: prompt }],
+            model: "llama-3.3-70b-versatile",
+        });
+
+        res.json({ fixedCode: completion.choices[0].message.content });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
 app.listen(process.env.PORT, () => {
   console.log(`Server running on port ${process.env.PORT}`)
